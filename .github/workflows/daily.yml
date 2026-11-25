@@ -10,12 +10,62 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Append entry and push
+      - name: Check 60-day window and push updates to 10 repos
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
+          export TZ=America/Argentina/Buenos_Aires
+          TODAY=$(date +%F)
+          NOW=$(date '+%Y-%m-%d %H:%M')
+          END_DATE="2027-01-24"
+
+          if [[ "$TODAY" > "$END_DATE" ]]; then
+            echo "Ventana de 60 días finalizada ($END_DATE). Sin cambios."
+            exit 0
+          fi
+
           git config user.name  "Exequiel Echevarria"
           git config user.email "221863036+ExeDevCentral@users.noreply.github.com"
+
+          # 1) Repo principal: daily-log
           mkdir -p logs
-          echo "$(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M') - daily note" >> "logs/$(date +%Y).txt"
+          echo "$NOW - daily note" >> "logs/$(date +%Y).txt"
           git add logs
-          git commit -m "log: $(TZ=America/Argentina/Buenos_Aires date +%F)"
+          git commit -m "log: $TODAY"
           git push
+
+          # 2) 9 repos públicos simples: actualiza una línea en README.md
+          REPOS=(
+            "Trabajo-Pr-ctico-Introducci-n-a-Python"
+            "Python-Text-Insight"
+            "proyectopython01"
+            "proyecto03"
+            "linux-escritorio-bitacora"
+            "calculadora"
+            "The-Guessing-Game"
+            "DonutManager"
+            "CellTrack"
+          )
+
+          WORKDIR=$(mktemp -d)
+          for repo in "${REPOS[@]}"; do
+            echo "=== Procesando $repo ==="
+            git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/ExeDevCentral/${repo}.git" "${WORKDIR}/${repo}"
+            cd "${WORKDIR}/${repo}"
+            git config user.name  "Exequiel Echevarria"
+            git config user.email "221863036+ExeDevCentral@users.noreply.github.com"
+
+            if [ -f README.md ] && grep -q '^_Última revisión:' README.md; then
+              sed -i "s|^_Última revisión:.*|_Última revisión: ${NOW}_|" README.md
+            else
+              printf '\n_Última revisión: %s_\n' "$NOW" >> README.md
+            fi
+
+            git add README.md
+            if ! git diff --cached --quiet; then
+              git commit -m "docs: update README status ($TODAY)"
+              git push
+            fi
+            cd - >/dev/null
+            rm -rf "${WORKDIR}/${repo}"
+          done
