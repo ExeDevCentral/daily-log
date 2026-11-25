@@ -1,0 +1,21 @@
+name: daily-log
+on:
+  schedule:
+    - cron: "17 14 * * *"   # todos los días 11:17 (hora Argentina, UTC-3)
+  workflow_dispatch: {}      # botón para correrlo a mano
+permissions:
+  contents: write
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Append entry and push
+        run: |
+          git config user.name  "Exequiel Echevarria"
+          git config user.email "221863036+ExeDevCentral@users.noreply.github.com"
+          mkdir -p logs
+          echo "$(TZ=America/Argentina/Buenos_Aires date '+%Y-%m-%d %H:%M') - daily note" >> "logs/$(date +%Y).txt"
+          git add logs
+          git commit -m "log: $(TZ=America/Argentina/Buenos_Aires date +%F)"
+          git push
